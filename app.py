@@ -230,3 +230,210 @@ else:
         f"Showing {len(map_df)} countries with data for {map_year}. "
         "Hover over countries for exact values."
     )
+# ---------------------------------------------------------------------
+# Time-series line chart — trends for selected countries
+# ---------------------------------------------------------------------
+st.subheader(f"📈 Trends over time — {INDICATOR_LABELS[indicator]}")
+
+if not selected_countries:
+    st.warning("Select one or more countries in the sidebar to see trends.")
+else:
+    ts_df = countries_df[
+        (countries_df["country"].isin(selected_countries)) &
+        (countries_df["year"] >= year_range[0]) &
+        (countries_df["year"] <= year_range[1])
+    ].dropna(subset=[indicator])
+
+    if len(ts_df) == 0:
+        st.warning("No data available for the selected countries and year range.")
+    else:
+        fig_ts = px.line(
+            ts_df,
+            x="year",
+            y=indicator,
+            color="country",
+            markers=True,
+            labels={
+                "year": "Year",
+                indicator: INDICATOR_LABELS[indicator],
+                "country": "Country",
+            },
+            title=f"{INDICATOR_LABELS[indicator]} · {year_range[0]}–{year_range[1]}",
+        )
+        fig_ts.update_layout(
+            height=500,
+            hovermode="x unified",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=-0.25,
+                xanchor="center",
+                x=0.5,
+            ),
+            margin=dict(l=0, r=0, t=50, b=0),
+        )
+        fig_ts.update_traces(line=dict(width=2.5))
+        st.plotly_chart(fig_ts, use_container_width=True)
+
+        # Insight caption — pick out the biggest mover
+        ts_change = (
+            ts_df.sort_values("year")
+            .groupby("country")[indicator]
+            .agg(["first", "last"])
+            .assign(delta=lambda d: d["last"] - d["first"])
+            .sort_values("delta", ascending=False)
+        )
+        if len(ts_change) > 0:
+            top_mover = ts_change.index[0]
+            top_delta = ts_change["delta"].iloc[0]
+            direction = "grew" if top_delta >= 0 else "fell"
+            st.caption(
+                f"💡 Among selected countries, **{top_mover}** {direction} the most "
+                f"({top_delta:+.1f}) between {year_range[0]} and {year_range[1]}."
+            )
+# ---------------------------------------------------------------------
+# Bar chart — Top/Bottom country rankings
+# ---------------------------------------------------------------------
+st.subheader(f"🏆 Country rankings — {INDICATOR_LABELS[indicator]}")
+
+rank_col1, rank_col2 = st.columns([1, 3])
+with rank_col1:
+    rank_year = st.slider(
+        "Ranking year",
+        min_value=year_range[0],
+        max_value=year_range[1],
+        value=year_range[1],
+        step=1,
+        key="rank_year",
+    )
+    rank_mode = st.radio(
+        "Show",
+        options=["Top 10", "Bottom 10", "Top & Bottom 5"],
+        index=0,
+    )
+
+with rank_col2:
+    rank_df = countries_df[
+        countries_df["year"] == rank_year
+    ].dropna(subset=[indicator])
+
+    if len(rank_df) == 0:
+        st.warning(f"No data available for {rank_year}.")
+    else:
+        if rank_mode == "Top 10":
+            plot_df = rank_df.nlargest(10, indicator)
+            colour_scale = "Greens"
+        elif rank_mode == "Bottom 10":
+            plot_df = rank_df.nsmallest(10, indicator)
+            colour_scale = "Reds"
+        else:  # Top & Bottom 5
+            top5 = rank_df.nlargest(5, indicator).assign(group="Top 5")
+            bot5 = rank_df.nsmallest(5, indicator).assign(group="Bottom 5")
+            plot_df = pd.concat([top5, bot5])
+            colour_scale = "RdYlGn"
+
+        fig_bar = px.bar(
+            plot_df.sort_values(indicator, ascending=True),
+            x=indicator,
+            y="country",
+            orientation="h",
+            color=indicator,
+            color_continuous_scale=colour_scale,
+            labels={
+                indicator: INDICATOR_LABELS[indicator],
+                "country": "",
+            },
+            title=f"{rank_mode} — {rank_year}",
+            text=indicator,
+        )
+        fig_bar.update_traces(
+            texttemplate="%{text:.1f}",
+            textposition="outside",
+        )
+        fig_bar.update_layout(
+            height=450,
+            margin=dict(l=0, r=0, t=50, b=0),
+            coloraxis_showscale=False,
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+# ---------------------------------------------------------------------
+# Scatter plot — Correlation between two indicators
+# ---------------------------------------------------------------------
+st.subheader("🔬 Indicator correlation")
+st.caption(
+    "Explore whether two indicators move together. "
+    "Each dot is one country in the chosen year."
+)
+
+scatter_col1, scatter_col2 = st.columns(2)
+with scatter_col1:
+    x_indicator = st.selectbox(
+        "X-axis indicator",
+        options=indicator_options,
+        format_func=lambda x: INDICATOR_LABELS[x],
+        index=0,  # default: electricity access
+        key="x_indicator",
+    )
+with scatter_col2:
+    y_indicator = st.selectbox(
+        "Y-axis indicator",
+        options=indicator_options,
+        format_func=lambda x: INDICATOR_LABELS[x],
+        index=3,  # default: renewable energy share
+        key="y_indicator",
+    )
+
+scatter_year = st.slider(
+    "Year",
+    min_value=year_range[0],
+    max_value=year_range[1],
+    value=year_range[1],
+    step=1,
+    key="scatter_year",
+)
+
+scatter_df = countries_df[
+    countries_df["year"] == scatter_year
+].dropna(subset=[x_indicator, y_indicator, "total_electricity_gwh"])
+
+if x_indicator == y_indicator:
+    st.info("Pick two *different* indicators on the X and Y axes to see a relationship.")
+elif len(scatter_df) < 10:
+    st.warning(f"Not enough data points for {scatter_year}. Try a different year.")
+else:
+    fig_scatter = px.scatter(
+        scatter_df,
+        x=x_indicator,
+        y=y_indicator,
+        hover_name="country",
+        size="total_electricity_gwh",
+        size_max=40,
+        color="renewable_energy_pct",
+        color_continuous_scale="Viridis",
+        labels={
+            x_indicator: INDICATOR_LABELS[x_indicator],
+            y_indicator: INDICATOR_LABELS[y_indicator],
+            "renewable_energy_pct": "Renewable %",
+            "total_electricity_gwh": "Total electricity (GWh)",
+        },
+        title=f"{INDICATOR_LABELS[y_indicator]} vs {INDICATOR_LABELS[x_indicator]} — {scatter_year}",
+        trendline="ols",
+    )
+    fig_scatter.update_layout(
+        height=550,
+        margin=dict(l=0, r=0, t=50, b=0),
+    )
+    st.plotly_chart(fig_scatter, use_container_width=True)
+
+    # Compute correlation coefficient
+    correlation = scatter_df[x_indicator].corr(scatter_df[y_indicator])
+    corr_strength = (
+        "strong" if abs(correlation) > 0.7
+        else "moderate" if abs(correlation) > 0.4
+        else "weak"
+    )
+    corr_direction = "positive" if correlation > 0 else "negative"
+    st.caption(
+        f"💡 Pearson correlation: **{correlation:+.2f}** — a {corr_strength} {corr_direction} relationship. "
+        f"Bubble size = total electricity output (GWh). Colour = renewable % share."
+    )    
