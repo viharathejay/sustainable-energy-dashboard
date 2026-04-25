@@ -1,0 +1,16 @@
+[theme]
+# Primary accent — sustainability teal
+primaryColor = "#14B8A6"
+
+# Main backgrounds
+backgroundColor = "#F8FAFC"
+secondaryBackgroundColor = "#F7F7FB"
+
+# Text
+textColor = "#0F172A"
+
+# Font — Streamlit 1.32+ supports Google fonts via name
+font = "sans serif"
+
+[theme.sidebar]
+backgroundColor = "#F9FAFB"

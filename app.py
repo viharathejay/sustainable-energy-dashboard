@@ -15,7 +15,7 @@ from src.data_loader import (
 )
 
 # ---------------------------------------------------------------------
-# Page config
+# Page config (must be first Streamlit call)
 # ---------------------------------------------------------------------
 st.set_page_config(
     page_title="Sustainable Energy Dashboard",
@@ -24,7 +24,104 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------
-# Load data (cached so it doesn't reload on every interaction)
+# Design tokens
+# ---------------------------------------------------------------------
+PRIMARY = "#14B8A6"
+PRIMARY_DARK = "#0F766E"
+ACCENT_AMBER = "#F59E0B"
+ACCENT_ROSE = "#EC4899"
+ACCENT_EMERALD = "#10B981"
+ACCENT_VIOLET = "#8B5CF6"
+INK = "#0F172A"
+MUTED = "#64748B"
+BG_SOFT = "#F7F7FB"
+BORDER = "#E2E8F0"
+
+SEQUENTIAL_SCALE = "Tealgrn"
+DIVERGING_SCALE = "RdYlGn"
+QUALITATIVE_PALETTE = px.colors.qualitative.Safe
+
+# Global CSS
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    html, body, [class*="css"], .stMarkdown, .stText {
+        font-family: 'Inter', -apple-system, sans-serif !important;
+    }
+
+    h1, h2, h3, h4 {
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        letter-spacing: -0.01em;
+    }
+
+    .kpi-card {
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 14px;
+        padding: 1.1rem 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        box-shadow: 0 1px 3px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.03);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        height: 100%;
+    }
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 2px 6px rgba(15,23,42,0.06), 0 10px 20px rgba(15,23,42,0.05);
+    }
+    .kpi-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: white;
+    }
+    .kpi-body { flex: 1; min-width: 0; }
+    .kpi-label {
+        font-size: 0.78rem;
+        color: #64748B;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 500;
+        margin-bottom: 0.15rem;
+    }
+    .kpi-value {
+        font-size: 1.9rem;
+        font-weight: 700;
+        color: #0F172A;
+        line-height: 1.1;
+        margin-bottom: 0.15rem;
+    }
+    .kpi-sub {
+        font-size: 0.82rem;
+        color: #64748B;
+        font-weight: 500;
+    }
+    button[data-baseweb="tab"] {
+        font-weight: 500 !important;
+        padding: 0.6rem 1rem !important;
+    }
+    .section-title {
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #0F172A;
+        margin: 0.5rem 0 0.6rem 0;
+        letter-spacing: -0.01em;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ---------------------------------------------------------------------
+# Load data
 # ---------------------------------------------------------------------
 @st.cache_data
 def get_data() -> pd.DataFrame:
@@ -34,7 +131,7 @@ df = get_data()
 countries_df = get_countries_only(df)
 
 # ---------------------------------------------------------------------
-# Sidebar — filters
+# Sidebar
 # ---------------------------------------------------------------------
 st.sidebar.title("Controls")
 
@@ -85,68 +182,154 @@ st.caption(
     "Data: World Bank SE4ALL"
 )
 
-# Filtered dataset (used across tabs)
 base_df = df if show_aggregates else countries_df
 filtered = base_df[
     (base_df["year"] >= year_range[0]) & (base_df["year"] <= year_range[1])
 ].copy()
 
 # ---------------------------------------------------------------------
+# KPI card helper + icons
+# ---------------------------------------------------------------------
+ICON_GLOBE = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
+ICON_TROPHY = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>'
+ICON_TREND_DOWN = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></svg>'
+ICON_TREND_UP = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>'
+
+
+def kpi_card(icon_svg: str, icon_bg: str, label: str, value: str, sub: str = "") -> str:
+    sub_block = f'<div class="kpi-sub">{sub}</div>' if sub else '<div class="kpi-sub">&nbsp;</div>'
+    html = (
+        f'<div class="kpi-card">'
+        f'<div class="kpi-icon" style="background: {icon_bg};">{icon_svg}</div>'
+        f'<div class="kpi-body">'
+        f'<div class="kpi-label">{label}</div>'
+        f'<div class="kpi-value">{value}</div>'
+        f'{sub_block}'
+        f'</div>'
+        f'</div>'
+    )
+    return html
+
+
+# ---------------------------------------------------------------------
 # Tabs
 # ---------------------------------------------------------------------
 tab_overview, tab_map, tab_trends, tab_corr, tab_data = st.tabs([
-    "Overview",
-    "Map",
-    "Trends",
-    "Correlation",
-    "Data",
+    "Overview", "Map", "Trends", "Correlation", "Data",
 ])
 
 # ----------------------------- OVERVIEW TAB -----------------------------
 with tab_overview:
-    st.subheader(f"Key metrics — {INDICATOR_LABELS[indicator]}")
+    st.markdown(
+        f'<div class="section-title">Key metrics — {INDICATOR_LABELS[indicator]}</div>',
+        unsafe_allow_html=True,
+    )
 
     countries_filtered = countries_df[
         (countries_df["year"] >= year_range[0]) &
         (countries_df["year"] <= year_range[1])
     ].dropna(subset=[indicator])
 
-    latest_year = int(countries_filtered["year"].max())
-    latest_snapshot = countries_filtered[countries_filtered["year"] == latest_year]
+    if len(countries_filtered) > 0:
+        latest_year = int(countries_filtered["year"].max())
+        latest_snapshot = countries_filtered[countries_filtered["year"] == latest_year]
 
-    global_mean = latest_snapshot[indicator].mean()
-    top_row = latest_snapshot.nlargest(1, indicator).iloc[0]
-    bottom_row = latest_snapshot.nsmallest(1, indicator).iloc[0]
+        global_mean = latest_snapshot[indicator].mean()
+        top_row = latest_snapshot.nlargest(1, indicator).iloc[0]
+        bottom_row = latest_snapshot.nsmallest(1, indicator).iloc[0]
 
-    first_year = int(countries_filtered["year"].min())
-    start_snapshot = countries_filtered[countries_filtered["year"] == first_year][["country", indicator]]
-    end_snapshot = latest_snapshot[["country", indicator]]
-    change = end_snapshot.merge(start_snapshot, on="country", suffixes=("_end", "_start"))
-    change["delta"] = change[f"{indicator}_end"] - change[f"{indicator}_start"]
-    biggest_improver = change.nlargest(1, "delta").iloc[0] if len(change) else None
+        first_year = int(countries_filtered["year"].min())
+        start_snapshot = countries_filtered[countries_filtered["year"] == first_year][["country", indicator]]
+        end_snapshot = latest_snapshot[["country", indicator]]
+        change = end_snapshot.merge(start_snapshot, on="country", suffixes=("_end", "_start"))
+        change["delta"] = change[f"{indicator}_end"] - change[f"{indicator}_start"]
+        biggest_improver = change.nlargest(1, "delta").iloc[0] if len(change) else None
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric(f"Global average ({latest_year})", f"{global_mean:,.1f}")
-    with col2:
-        st.metric(f"Highest ({latest_year})", f"{top_row[indicator]:,.1f}")
-        st.caption(top_row["country"])
-    with col3:
-        st.metric(f"Lowest ({latest_year})", f"{bottom_row[indicator]:,.1f}")
-        st.caption(bottom_row["country"])
-    with col4:
-        if biggest_improver is not None:
-            st.metric(
-                f"Largest change ({first_year}–{latest_year})",
-                f"{biggest_improver['delta']:+,.1f}",
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.markdown(
+                kpi_card(ICON_GLOBE, ACCENT_AMBER, f"Global average · {latest_year}", f"{global_mean:,.1f}"),
+                unsafe_allow_html=True,
             )
-            st.caption(biggest_improver["country"])
+        with col2:
+            st.markdown(
+                kpi_card(ICON_TROPHY, ACCENT_EMERALD, f"Highest · {latest_year}", f"{top_row[indicator]:,.1f}", top_row["country"]),
+                unsafe_allow_html=True,
+            )
+        with col3:
+            st.markdown(
+                kpi_card(ICON_TREND_DOWN, ACCENT_ROSE, f"Lowest · {latest_year}", f"{bottom_row[indicator]:,.1f}", bottom_row["country"]),
+                unsafe_allow_html=True,
+            )
+        with col4:
+            if biggest_improver is not None:
+                st.markdown(
+                    kpi_card(ICON_TREND_UP, ACCENT_VIOLET, f"Largest change · {first_year}–{latest_year}", f"{biggest_improver['delta']:+,.1f}", biggest_improver["country"]),
+                    unsafe_allow_html=True,
+                )
 
-    st.markdown("---")
-    st.info(
-        "Use the sidebar controls to change the indicator, time range, "
-        "or countries highlighted. Switch between tabs above for different views."
-    )
+        st.markdown("<div style='height: 1.2rem;'></div>", unsafe_allow_html=True)
+
+        # Two-column preview charts
+        ov_col1, ov_col2 = st.columns(2)
+
+        with ov_col1:
+            st.markdown(
+                f'<div class="section-title">Geographic distribution · {latest_year}</div>',
+                unsafe_allow_html=True,
+            )
+            ov_map = px.choropleth(
+                latest_snapshot.dropna(subset=[indicator]),
+                locations="country_code",
+                color=indicator,
+                hover_name="country",
+                hover_data={"country_code": False, indicator: ":,.2f"},
+                color_continuous_scale=SEQUENTIAL_SCALE,
+                labels={indicator: INDICATOR_LABELS[indicator]},
+            )
+            ov_map.update_layout(
+                height=320,
+                margin=dict(l=0, r=0, t=10, b=0),
+                geo=dict(showframe=False, showcoastlines=True, projection_type="natural earth"),
+                coloraxis_colorbar=dict(thickness=10, len=0.7, title=None),
+            )
+            st.plotly_chart(ov_map, use_container_width=True)
+
+        with ov_col2:
+            st.markdown(
+                f'<div class="section-title">Global trend · {first_year}–{latest_year}</div>',
+                unsafe_allow_html=True,
+            )
+            global_trend = (
+                countries_filtered.groupby("year")[indicator]
+                .mean()
+                .reset_index()
+            )
+            ov_line = px.area(
+                global_trend,
+                x="year", y=indicator,
+                labels={"year": "Year", indicator: INDICATOR_LABELS[indicator]},
+            )
+            ov_line.update_traces(
+                line=dict(color=PRIMARY, width=2.5),
+                fillcolor="rgba(20, 184, 166, 0.15)",
+            )
+            ov_line.update_layout(
+                height=320,
+                margin=dict(l=0, r=0, t=10, b=0),
+                xaxis=dict(showgrid=False),
+                yaxis=dict(gridcolor="#E2E8F0", title=None),
+                plot_bgcolor="white",
+            )
+            st.plotly_chart(ov_line, use_container_width=True)
+
+        st.caption(
+            f"Average across all countries: {global_mean:.1f} in {latest_year}. "
+            f"For deeper analysis, see the Map, Trends, and Correlation tabs."
+        )
+
+    else:
+        st.warning("No data available for this filter combination.")
 
 # ----------------------------- MAP TAB -----------------------------
 with tab_map:
@@ -174,7 +357,7 @@ with tab_map:
             color=indicator,
             hover_name="country",
             hover_data={"country_code": False, indicator: ":,.2f"},
-            color_continuous_scale="Viridis",
+            color_continuous_scale=SEQUENTIAL_SCALE,
             labels={indicator: INDICATOR_LABELS[indicator]},
             title=f"{INDICATOR_LABELS[indicator]} — {map_year}",
         )
@@ -206,6 +389,7 @@ with tab_trends:
             fig_ts = px.line(
                 ts_df,
                 x="year", y=indicator, color="country", markers=True,
+                color_discrete_sequence=QUALITATIVE_PALETTE,
                 labels={"year": "Year", indicator: INDICATOR_LABELS[indicator], "country": "Country"},
                 title=f"{INDICATOR_LABELS[indicator]} · {year_range[0]}–{year_range[1]}",
             )
@@ -250,15 +434,15 @@ with tab_trends:
         if len(rank_df) > 0:
             if rank_mode == "Top 10":
                 plot_df = rank_df.nlargest(10, indicator)
-                colour_scale = "Greens"
+                colour_scale = SEQUENTIAL_SCALE
             elif rank_mode == "Bottom 10":
                 plot_df = rank_df.nsmallest(10, indicator)
-                colour_scale = "Reds"
+                colour_scale = [[0, "#FCA5A5"], [1, "#991B1B"]]
             else:
                 top5 = rank_df.nlargest(5, indicator)
                 bot5 = rank_df.nsmallest(5, indicator)
                 plot_df = pd.concat([top5, bot5])
-                colour_scale = "RdYlGn"
+                colour_scale = DIVERGING_SCALE
 
             fig_bar = px.bar(
                 plot_df.sort_values(indicator, ascending=True),
@@ -306,7 +490,7 @@ with tab_corr:
             scatter_df,
             x=x_indicator, y=y_indicator, hover_name="country",
             size="total_electricity_gwh", size_max=40,
-            color="renewable_energy_pct", color_continuous_scale="Viridis",
+            color="renewable_energy_pct", color_continuous_scale=SEQUENTIAL_SCALE,
             labels={
                 x_indicator: INDICATOR_LABELS[x_indicator],
                 y_indicator: INDICATOR_LABELS[y_indicator],
@@ -334,9 +518,7 @@ with tab_corr:
 # ----------------------------- DATA TAB -----------------------------
 with tab_data:
     st.subheader("Filtered data")
-    st.write(
-        f"{len(filtered):,} rows · {filtered['country'].nunique()} countries/regions"
-    )
+    st.write(f"{len(filtered):,} rows · {filtered['country'].nunique()} countries/regions")
 
     csv = filtered.to_csv(index=False).encode("utf-8")
     st.download_button(
