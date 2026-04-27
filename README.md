@@ -44,6 +44,4 @@ The raw CSV is included at `data/se4all_raw.csv` so the app is fully self-contai
 
 ---
 
-## Project structure
 
-```
